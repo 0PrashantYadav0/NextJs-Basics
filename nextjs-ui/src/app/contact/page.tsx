@@ -1,7 +1,12 @@
 'use client'
+
+import HeroSection from "@/components/HeroSection"
+
 function page() {
   return (
-    <div>test2</div>
+    <div>
+      <HeroSection/>
+    </div>
   )
 }
 
