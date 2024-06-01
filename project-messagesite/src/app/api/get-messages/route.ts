@@ -1,73 +1,48 @@
-import dbConnect from "@/lib/dbConnect";
-import { User, getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/options";
-import mongoose from "mongoose";
-import UserModel from "@/models/User";
+import dbConnect from '@/lib/dbConnect';
+import UserModel from '@/model/User';
+import mongoose from 'mongoose';
+import { User } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]/options';
 
-export async function GET(reqest: Request) {
+export async function GET(request: Request) {
   await dbConnect();
+  const session = await getServerSession(authOptions);
+  const _user: User = session?.user;
 
+  if (!session || !_user) {
+    return Response.json(
+      { success: false, message: 'Not authenticated' },
+      { status: 401 }
+    );
+  }
+  const userId = new mongoose.Types.ObjectId(_user._id);
   try {
-    const session = await getServerSession(authOptions);
-    const userFromSession: User = session?.user;
-
-    if (!session || !session.user) {
-      return Response.json(
-        {
-          success: false,
-          message: "Not Authenticated",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
-    const userId = new mongoose.Types.ObjectId(userFromSession._id);
-
     const user = await UserModel.aggregate([
-      { $match: { id: userId } },
-      { $unwind: "$messages" },
-      { $sort: { "messages.createdAt": -1 } },
-      {
-        $group: {
-          _id: "$_id",
-          messages: { $push: "$messages" },
-        },
-      },
-    ]);
+      { $match: { _id: userId } },
+      { $unwind: '$messages' },
+      { $sort: { 'messages.createdAt': -1 } },
+      { $group: { _id: '$_id', messages: { $push: '$messages' } } },
+    ]).exec();
 
     if (!user || user.length === 0) {
       return Response.json(
-        {
-          success: false,
-          message: "User Not Found",
-        },
-        {
-          status: 401,
-        }
+        { message: 'User not found', success: false },
+        { status: 404 }
       );
     }
 
     return Response.json(
-      {
-        success: true,
-        message: user[0].messages,
-      },
+      { messages: user[0].messages },
       {
         status: 200,
       }
     );
   } catch (error) {
-    console.error("Error Getting User", error);
+    console.error('An unexpected error occurred:', error);
     return Response.json(
-      {
-        success: false,
-        message: "Error Getting User",
-      },
-      {
-        status: 500,
-      }
+      { message: 'Internal server error', success: false },
+      { status: 500 }
     );
   }
 }
